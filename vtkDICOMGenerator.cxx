@@ -58,6 +58,8 @@ vtkDICOMGenerator::vtkDICOMGenerator()
   this->RangeArray = 0;
   this->PixelValueRange[0] = 0;
   this->PixelValueRange[1] = 0;
+  this->SharedFunctionalItem = 0;
+  this->PerFrameFunctionalItems = 0;
 
   for (int i = 0; i < 5; i++)
     {
@@ -1233,6 +1235,290 @@ bool vtkDICOMGenerator::GenerateGeneralEquipmentModule(vtkDICOMMetaData *meta)
 
   return (this->CopyRequiredAttributes(required, meta) &&
           this->CopyOptionalAttributes(optional, meta));
+}
+
+//----------------------------------------------------------------------------
+vtkDICOMItem *vtkDICOMGenerator::NewFunctionalGroupItem(
+  vtkDICOMMetaData *, vtkDICOMTag tag)
+{
+  vtkDICOMValue s;
+  vtkDICOMItem *i = s.AllocateSequenceData(vtkDICOMVR::SQ, 1);
+  this->SharedFunctionalItem->SetAttributeValue(tag, s);
+  return i;
+}
+
+//----------------------------------------------------------------------------
+vtkDICOMItem *vtkDICOMGenerator::NewFunctionalGroupItem(
+  vtkDICOMMetaData *, int frame, vtkDICOMTag tag)
+{
+  vtkDICOMValue s;
+  vtkDICOMItem *i = s.AllocateSequenceData(vtkDICOMVR::SQ, 1);
+  this->PerFrameFunctionalItems[frame].SetAttributeValue(tag, s);
+  return i;
+}
+
+//----------------------------------------------------------------------------
+bool vtkDICOMGenerator::GenerateMultiFrameFunctionalGroupsModule(
+  vtkDICOMMetaData *meta)
+{
+  // InstanceNumber is mandatory
+  meta->SetAttributeValue(DC::InstanceNumber, 1);
+
+  // ContentDate and ContentTime are mandatory
+  if (!meta->HasAttribute(DC::ContentTime) ||
+      !meta->HasAttribute(DC::ContentDate))
+    {
+    char text[32];
+    time_t t;
+    time(&t);
+    strftime(text, sizeof(text), "%Y%m%d%H%M%S", localtime(&t));
+    text[8 + 6] = '\0';
+    meta->SetAttributeValue(DC::ContentTime, &text[8]);
+    text[8] = '\0';
+    meta->SetAttributeValue(DC::ContentDate, &text[0]);
+    }
+
+  // compute the number of frames
+  int nframes = ((this->Dimensions[2] > 0 ? this->Dimensions[2] : 1) *
+                 (this->Dimensions[3] > 0 ? this->Dimensions[3] : 1) *
+                 (this->Dimensions[4] > 0 ? this->Dimensions[4] : 1));
+
+  // copy out the spacing, it must be adjusted
+  double spacing[3];
+  spacing[0] = this->Spacing[0];
+  spacing[1] = this->Spacing[1];
+  spacing[2] = this->Spacing[2];
+
+  double matrix[16], origin[3];
+  this->ComputeAdjustedMatrix(matrix, origin, spacing);
+  double zorigin = origin[2];
+
+  int timeSlices = 1;
+  if (!this->TimeAsVector && this->Dimensions[3] > 0)
+    {
+    timeSlices = this->Dimensions[3];
+    spacing[2] *= timeSlices;
+    }
+
+  // Items for Shared Functional Groups and Per-frame Functional Groups
+  vtkDICOMValue sfgs, pfgs;
+  vtkDICOMItem *sfgi = sfgs.AllocateSequenceData(vtkDICOMVR::SQ, 1);
+  vtkDICOMItem *pfgi = pfgs.AllocateSequenceData(vtkDICOMVR::SQ, nframes);
+  meta->SetAttributeValue(DC::SharedFunctionalGroupsSequence, sfgs);
+  meta->SetAttributeValue(DC::PerFrameFunctionalGroupsSequence, pfgs);
+  this->SharedFunctionalItem = sfgi;
+  this->PerFrameFunctionalItems = pfgi;
+
+  // set multi-frame information
+  meta->SetAttributeValue(DC::NumberOfFrames, nframes);
+
+  // DC::RepresentativeFrameNumber (optional)
+
+  // DC::ConatenationUID (1C)
+  // SOPInstanceUIDOfConcatenationSource (1C)
+  // InConcatenationNumber (1C)
+  // InConcatenationTotalNumer (optional)
+
+  //-----
+  // FrameContentSequence, mandatory, always per-frame
+  if (0) // loop over frames
+    {
+    // optional:
+    // DC::FrameAcquisitionNumber,
+    // DC::FrameReferenceDateTime,   // 1C (mandatory for ORIGINAL)
+    // DC::FrameAcquisitionDateTime, // 1C (ditto)
+    // DC::FrameAcquisitionDuration, // 1C (ditto)
+    // DC::CardiacCyclePosition,
+    // DC::RespiratoryCyclePosition,
+    // DC::DimensionIndexValues,  // 1C (mandatory if DimensionIndexSequence)
+    // DC::TemporalPositionIndex, // 1C (mandatory for PET)
+    // DC::StackID,               // 1C (mandatory for PET)
+    // DC::InStackPositionNumber, // 1C (mandatory if StackID)
+    // DC::FrameComments,
+    // DC::FrameLabel,
+    // DC::ItemDelimitationItem
+    }
+
+  //-----
+  // PixelMeasuresSequence is tied to PlanePosition and PlaneOrientation
+    {
+    vtkDICOMItem *pmi = this->NewFunctionalGroupItem(
+      meta, DC::PixelMeasuresSequence);
+
+    pmi->SetAttributeValue(
+      DC::PixelSpacing,
+      vtkDICOMValue(vtkDICOMVR::DS, spacing, spacing+2));
+    pmi->SetAttributeValue(DC::SliceThickness, fabs(spacing[2]));
+
+    // Remove conflicting attributes, just in case
+    meta->RemoveAttribute(DC::PixelAspectRatio);
+    meta->RemoveAttribute(DC::PixelSpacing);
+    meta->RemoveAttribute(DC::SliceThickness);
+    meta->RemoveAttribute(DC::SpacingBetweenSlices);
+    }
+
+  //-----
+  // PlanePositionSequence, mandatory, usually per-frame
+  // PlaneOrientationSequence, mandatory, usually shared
+    {
+    for (int i = 0; i < nframes; i++)
+      {
+      int sliceIdx = this->SliceIndexArray->GetComponent(0, i);
+      // remove the time from the slice index
+      sliceIdx /= timeSlices;
+      origin[2] = zorigin + sliceIdx*spacing[2];
+
+      double position[3], orientation[6];
+      vtkDICOMGenerator::ComputePositionAndOrientation(
+        origin, matrix, position, orientation);
+
+      vtkDICOMItem *ppi = this->NewFunctionalGroupItem(
+        meta, i, DC::PlanePositionSequence);
+
+      ppi->SetAttributeValue(
+        DC::ImagePositionPatient,
+        vtkDICOMValue(vtkDICOMVR::DS, position, position+3));
+
+      if (i == 0)
+        {
+        vtkDICOMItem *poi = this->NewFunctionalGroupItem(
+          meta, DC::PlaneOrientationSequence);
+
+        poi->SetAttributeValue(
+          DC::ImageOrientationPatient,
+          vtkDICOMValue(vtkDICOMVR::DS, orientation, orientation+6));
+        }
+      }
+    }
+
+  //-----
+  // ReferencedImageSequence, required
+  if (0)
+    {
+    // DC::ReferencedFrameNumber,   // 1C (mandatory for per-frame references)
+    // DC::ReferencedSegmentNumber, // 1C (mutually exclusive with above)
+    // DC::PurposeOfReferenceCodeSequence, // 1
+    }
+
+  //-----
+  // DerivationImageSequence, required
+  if (0)
+    {
+    // DC::DerivationDescription,
+    // DC::DerivationCodeSequence, // 1
+    // DC::SourceImageSequence, // 2
+    }
+
+  //-----
+  // CardiacSynchronizationSequence, mandatory
+  if (0)
+    {
+    // DC::NominalPercentageOfCardiacPhase, // 1C
+    // DC::NominalCardiacTriggeDelayTime, // 1
+    // DC::ActualCardiacTriggerDelayTime, // 1C
+    // DC::NominalCardiacTriggerTimePriorToRPeak,
+    // DC::ActualCardiacTriggerTimePriorToRPeak,
+    // DC::IntervalsAcquired,
+    // DC::IntervalsRejected,
+    // DC::HeartRate,
+    // DC::RRIntervalTimeNominal, // 1C
+    // DC::LowRRValue,
+    // DC::HighRRValue,
+    }
+
+  //-----
+  // FrameAnatomySequence, mandatory
+  if (0)
+    {
+    // DC::FrameLaterality, // 1
+    // DC::AnatomicRegionSequence, // 1
+    }
+
+  //-----
+  // PixelValueTransformationSequence, mandatory
+  if (0)
+    {
+    // DC::RescaleIntercept, // 1
+    // DC::RescaleSlope, // 1
+    // DC::RescaleType, // 1
+    }
+
+  //-----
+  // FrameVOILUSequence, mandatory
+  if (0)
+    {
+    // DC::WindowCenter, // 1C (manditory if no VOILUTSequence)
+    // DC::WindowWidth, // 1C
+    // DC::WindowCenterWidthExplanation,
+    // DC::VOILUTFunction, // LINEAR or SIGMOID
+    // DC::VOILUTSequence // 1C (mandatory no WindowCenter/Width)
+    }
+
+  //-----
+  // RealWorldValueMappingSequence, mandatory
+  if (0)
+    {
+    // DC::RealWorldValueMappingSequence, // 1
+    // DC::RealWorldFirstValueMapped, // 1
+    // DC::RealWorldLastValueMapped, // 1
+    // DC::RealWorldValueIntercept, // 1C (mandatory if no LUT)
+    // DC::RealWorldValueSlope, // 1C
+    // DC::RealWorldValueLUTData, // 1C (mandatory if no Slope/Intercept)
+    // DC::LUTExplanation, // 1
+    // DC::LUTLabel, // 1
+    // DC::MeasurementUnitsCodeSequence, // 1
+    }
+
+  //-----
+  // ContrastBolusUsageSequence
+  //-----
+  // PixelintensityRelationshipLUTSequence
+  //-----
+  // FramePixelShiftSequence
+  //-----
+  // PatientOrientationInFrameSequence
+  //-----
+  // FrameDisplayShutterSequence
+  //-----
+  // RespiratorySynchronizationSequence
+  //-----
+  // IrradiationEventIdentificationSequence
+  //-----
+  // RadiopharmaceuticalUsageSequence
+  //-----
+  // PatientPhysiologicalStateSequence
+  //-----
+  // PlanePositionVolumeSequence
+  //-----
+  // PlaneOrientationVolumeSequence
+  //-----
+  // TemporalPositionSequence
+  //-----
+  // ImageDataTypeSequence
+  if (0)
+    {
+    // DC::DataType, // 1 with ultrasound-specific values
+    // DC::AliasedDataType, // 1 with values YES or NO
+    }
+  //-----
+  // DimensionOrganizationSequence, mandatory
+  if (0)
+    {
+    // DC::DimensionOrganizationUID
+    }
+  // DimensionOrganizationType
+  // DimensionIndexSequence, mandatory
+  if (0)
+    {
+    // DC::DimensionIndexPointer, // 1
+    // DC::DimensionIndexPrivateCreator, // 1C
+    // DC::FunctionalGroupPointer, // 1C
+    // DC::FunctionalGroupPrivateCreator, // 1C
+    // DC::DimensionOrganizationUID, // 1C
+    // DC::DimensionDescriptionLabel,
+    }
+
+  return true;
 }
 
 //----------------------------------------------------------------------------

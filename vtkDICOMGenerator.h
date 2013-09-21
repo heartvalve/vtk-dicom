@@ -228,6 +228,23 @@ protected:
   //! Generate the DICOM VOI LUT Module.
   virtual bool GenerateVOILUTModule(vtkDICOMMetaData *meta);
 
+  //! Generate The DICOM Multi-frame Functional Groups Module.
+  virtual bool GenerateMultiFrameFunctionalGroupsModule(
+    vtkDICOMMetaData *meta);
+
+  //! Create new item within the functional groups.
+  /*!
+   *  Add a new sequence under either the SharedFunctionalGroupsSequence or,
+   *  if a frame index is provided, to the PerFrameFunctionalGroupsSequence.
+   *  The new item within the newly created sequence is returned.  This
+   *  can only be used after GenerateMultiFrameFunctionalGroupsModule has
+   *  been called for the same vtkDICOMMetaData object.
+   */
+  vtkDICOMItem *NewFunctionalGroupItem(
+    vtkDICOMMetaData *meta, vtkDICOMTag tag);
+  vtkDICOMItem *NewFunctionalGroupItem(
+    vtkDICOMMetaData *meta, int frame, vtkDICOMTag tag);
+
   //! Copy required attributes into the meta data.
   /*!
    *  Required attributes must be set, so if no value is available,
@@ -367,6 +384,10 @@ protected:
 
   //! Map from frame to image min/max.
   vtkIntArray *RangeArray;
+
+  //! The data sets for the functional group module.
+  vtkDICOMItem *SharedFunctionalItem;
+  vtkDICOMItem *PerFrameFunctionalItems;
 
 private:
   vtkDICOMGenerator(const vtkDICOMGenerator&);  // Not implemented.
