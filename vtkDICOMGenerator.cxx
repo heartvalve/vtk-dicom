@@ -404,7 +404,7 @@ void vtkDICOMGenerator::MatchInstances(vtkDICOMMetaData *meta)
       }
 
     double orientation[6];
-    o.GetValues(orientation, orientation+6);
+    o.GetValues(orientation, 6);
     for (int i = 0; i < 3; i++)
       {
       if (fabs(matrix[4*i] - orientation[i]) > 1e-4 ||
@@ -467,7 +467,7 @@ void vtkDICOMGenerator::MatchInstances(vtkDICOMMetaData *meta)
       if (p.GetNumberOfValues() == 3)
         {
         double r[3];
-        p.GetValues(r, r+3);
+        p.GetValues(r, 3);
         double dd = 0;
         for (int k = 0; k < 3; k++)
           {
@@ -1302,7 +1302,7 @@ bool vtkDICOMGenerator::GenerateImagePlaneModule(vtkDICOMMetaData *meta)
 
   meta->SetAttributeValue(
     DC::PixelSpacing,
-    vtkDICOMValue(vtkDICOMVR::DS, spacing, spacing+2));
+    vtkDICOMValue(vtkDICOMVR::DS, spacing, 2));
 
   // this will have to account for image flip, if present
   int n = meta->GetNumberOfInstances();
@@ -1320,11 +1320,11 @@ bool vtkDICOMGenerator::GenerateImagePlaneModule(vtkDICOMMetaData *meta)
 
     meta->SetAttributeValue(
       i, DC::ImagePositionPatient,
-      vtkDICOMValue(vtkDICOMVR::DS, position, position+3));
+      vtkDICOMValue(vtkDICOMVR::DS, position, 3));
 
     meta->SetAttributeValue(
       i, DC::ImageOrientationPatient,
-      vtkDICOMValue(vtkDICOMVR::DS, orientation, orientation+6));
+      vtkDICOMValue(vtkDICOMVR::DS, orientation, 6));
 
     // location is optional, but useful
     double location = (position[0]*matrix[2] +
@@ -1508,7 +1508,7 @@ bool vtkDICOMGenerator::GenerateImagePixelModule(vtkDICOMMetaData *meta)
     vtkDICOMGenerator::ComputeAspectRatio(this->Spacing, aspect);
     meta->SetAttributeValue(
       DC::PixelAspectRatio,
-      vtkDICOMValue(vtkDICOMVR::IS, aspect, aspect+2));
+      vtkDICOMValue(vtkDICOMVR::IS, aspect, 2));
     }
 
   // The Smallest/LargestPixelValue are optional, but nice to have
