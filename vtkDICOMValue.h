@@ -81,15 +81,15 @@ public:
   vtkDICOMValue(vtkDICOMVR vr, double v);
   vtkDICOMValue(vtkDICOMVR vr, const std::string& v);
   vtkDICOMValue(vtkDICOMVR vr, vtkDICOMTag v);
-  vtkDICOMValue(vtkDICOMVR vr, const char *data, size_t count);
-  vtkDICOMValue(vtkDICOMVR vr, const unsigned char *data, size_t count);
-  vtkDICOMValue(vtkDICOMVR vr, const short *data, size_t count);
-  vtkDICOMValue(vtkDICOMVR vr, const unsigned short *data, size_t count);
-  vtkDICOMValue(vtkDICOMVR vr, const int *data, size_t count);
-  vtkDICOMValue(vtkDICOMVR vr, const unsigned int *data, size_t count);
-  vtkDICOMValue(vtkDICOMVR vr, const float *data, size_t count);
-  vtkDICOMValue(vtkDICOMVR vr, const double *data, size_t count);
-  vtkDICOMValue(vtkDICOMVR vr, const vtkDICOMTag *data, size_t count);
+  vtkDICOMValue(vtkDICOMVR vr, const char *data, unsigned int count);
+  vtkDICOMValue(vtkDICOMVR vr, const unsigned char *data, unsigned int count);
+  vtkDICOMValue(vtkDICOMVR vr, const short *data, unsigned int count);
+  vtkDICOMValue(vtkDICOMVR vr, const unsigned short *data, unsigned int count);
+  vtkDICOMValue(vtkDICOMVR vr, const int *data, unsigned int count);
+  vtkDICOMValue(vtkDICOMVR vr, const unsigned int *data, unsigned int count);
+  vtkDICOMValue(vtkDICOMVR vr, const float *data, unsigned int count);
+  vtkDICOMValue(vtkDICOMVR vr, const double *data, unsigned int count);
+  vtkDICOMValue(vtkDICOMVR vr, const vtkDICOMTag *data, unsigned int count);
 
 #ifndef REMOVE_DEPRECATED_METHODS
   vtkDICOMValue(vtkDICOMVR vr, const char *data, const char *end);
@@ -117,7 +117,7 @@ public:
   vtkDICOMValue(vtkDICOMVR vr, vtkDICOMCharacterSet cs,
                 const std::string& v);
   vtkDICOMValue(vtkDICOMVR vr, vtkDICOMCharacterSet cs,
-                const char *data, size_t l);
+                const char *data, unsigned int l);
 #ifndef REMOVE_DEPRECATED_METHODS
   vtkDICOMValue(vtkDICOMVR vr, vtkDICOMCharacterSet cs,
                 const char *data, const char *end);
@@ -189,15 +189,15 @@ public:
    *  decimal string) then conversion from text to a numerical value
    *  will be performed.
    */
-  void GetValues(std::string *vb, size_t n, size_t i=0) const;
-  void GetValues(unsigned char *vb, size_t n, size_t i=0) const;
-  void GetValues(short *vb, size_t n, size_t i=0) const;
-  void GetValues(unsigned short *vb, size_t n, size_t i=0) const;
-  void GetValues(int *vb, size_t n, size_t i=0) const;
-  void GetValues(unsigned int *vb, size_t n, size_t i=0) const;
-  void GetValues(float *vb, size_t n, size_t i=0) const;
-  void GetValues(double *vb, size_t n, size_t i=0) const;
-  void GetValues(vtkDICOMTag *vb, size_t n, size_t i=0) const;
+  void GetValues(std::string *vb, unsigned int n, unsigned int i=0) const;
+  void GetValues(unsigned char *vb, unsigned int n, unsigned int i=0) const;
+  void GetValues(short *vb, unsigned int n, unsigned int i=0) const;
+  void GetValues(unsigned short *vb, unsigned int n, unsigned int i=0) const;
+  void GetValues(int *vb, unsigned int n, unsigned int i=0) const;
+  void GetValues(unsigned int *vb, unsigned int n, unsigned int i=0) const;
+  void GetValues(float *vb, unsigned int n, unsigned int i=0) const;
+  void GetValues(double *vb, unsigned int n, unsigned int i=0) const;
+  void GetValues(vtkDICOMTag *vb, unsigned int n, unsigned int i=0) const;
 
 #ifndef REMOVE_DEPRECATED_METHODS
   //! Copy values into vb until ve is reached, starting at value "i".
@@ -207,23 +207,23 @@ public:
    *  decimal string) then conversion from text to a numerical value
    *  will be performed.
    */
-  void GetValues(std::string *vb, std::string *ve, size_t i=0) const {
+  void GetValues(std::string *vb, std::string *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
-  void GetValues(unsigned char *vb, unsigned char *ve, size_t i=0) const {
+  void GetValues(unsigned char *vb, unsigned char *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
-  void GetValues(short *vb, short *ve, size_t i=0) const {
+  void GetValues(short *vb, short *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
-  void GetValues(unsigned short *vb, unsigned short *ve, size_t i=0) const {
+  void GetValues(unsigned short *vb, unsigned short *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
-  void GetValues(int *vb, int *ve, size_t i=0) const {
+  void GetValues(int *vb, int *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
-  void GetValues(unsigned int *vb, unsigned int *ve, size_t i=0) const {
+  void GetValues(unsigned int *vb, unsigned int *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
-  void GetValues(float *vb, float *ve, size_t i=0) const {
+  void GetValues(float *vb, float *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
-  void GetValues(double *vb, double *ve, size_t i=0) const {
+  void GetValues(double *vb, double *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
-  void GetValues(vtkDICOMTag *vb, vtkDICOMTag *ve, size_t i=0) const {
+  void GetValues(vtkDICOMTag *vb, vtkDICOMTag *ve, unsigned int i=0) const {
     this->GetValues(vb, ve - vb, i); }
 #endif /* REMOVE_DEPRECATED_METHODS */
 
@@ -234,16 +234,16 @@ public:
    *  not possible, or the index is out of range, then the return
    *  value will be zero (or an empty string).
    */
-  std::string GetUTF8String(size_t i) const;
-  std::string GetString(size_t i) const;
-  unsigned char GetUnsignedChar(size_t i) const;
-  short GetShort(size_t i) const;
-  unsigned short GetUnsignedShort(size_t i) const;
-  int GetInt(size_t i) const;
-  unsigned int GetUnsignedInt(size_t i) const;
-  float GetFloat(size_t i) const;
-  double GetDouble(size_t i) const;
-  vtkDICOMTag GetTag(size_t i) const;
+  std::string GetUTF8String(unsigned int i) const;
+  std::string GetString(unsigned int i) const;
+  unsigned char GetUnsignedChar(unsigned int i) const;
+  short GetShort(unsigned int i) const;
+  unsigned short GetUnsignedShort(unsigned int i) const;
+  int GetInt(unsigned int i) const;
+  unsigned int GetUnsignedInt(unsigned int i) const;
+  float GetFloat(unsigned int i) const;
+  double GetDouble(unsigned int i) const;
+  vtkDICOMTag GetTag(unsigned int i) const;
 
   //! Convert the value to a scalar value or string.
   /*!
@@ -297,19 +297,19 @@ public:
    *  be an efficent way for the parser to allocate a value so that
    *  the value's contents can be read in directly from a file.
    */
-  char *AllocateCharData(vtkDICOMVR vr, size_t vn);
+  char *AllocateCharData(vtkDICOMVR vr, unsigned int vn);
   char *AllocateCharData(
-    vtkDICOMVR vr, vtkDICOMCharacterSet cs, size_t vn);
-  unsigned char *AllocateUnsignedCharData(vtkDICOMVR vr, size_t vn);
-  short *AllocateShortData(vtkDICOMVR vr, size_t vn);
-  unsigned short *AllocateUnsignedShortData(vtkDICOMVR vr, size_t vn);
-  int *AllocateIntData(vtkDICOMVR vr, size_t vn);
-  unsigned int *AllocateUnsignedIntData(vtkDICOMVR vr, size_t vn);
-  float *AllocateFloatData(vtkDICOMVR vr, size_t vn);
-  double *AllocateDoubleData(vtkDICOMVR vr, size_t vn);
-  vtkDICOMTag *AllocateTagData(vtkDICOMVR vr, size_t vn);
-  vtkDICOMItem *AllocateSequenceData(vtkDICOMVR vr, size_t vn);
-  vtkDICOMValue *AllocateMultiplexData(vtkDICOMVR vr, size_t vn);
+    vtkDICOMVR vr, vtkDICOMCharacterSet cs, unsigned int vn);
+  unsigned char *AllocateUnsignedCharData(vtkDICOMVR vr, unsigned int vn);
+  short *AllocateShortData(vtkDICOMVR vr, unsigned int vn);
+  unsigned short *AllocateUnsignedShortData(vtkDICOMVR vr, unsigned int vn);
+  int *AllocateIntData(vtkDICOMVR vr, unsigned int vn);
+  unsigned int *AllocateUnsignedIntData(vtkDICOMVR vr, unsigned int vn);
+  float *AllocateFloatData(vtkDICOMVR vr, unsigned int vn);
+  double *AllocateDoubleData(vtkDICOMVR vr, unsigned int vn);
+  vtkDICOMTag *AllocateTagData(vtkDICOMVR vr, unsigned int vn);
+  vtkDICOMItem *AllocateSequenceData(vtkDICOMVR vr, unsigned int vn);
+  vtkDICOMValue *AllocateMultiplexData(vtkDICOMVR vr, unsigned int vn);
 
   //! Compute the number of backslash-separated string values.
   /*!
@@ -326,14 +326,14 @@ public:
    *  the internal data as needed.  After this method is called,
    *  the NumberOfValues will be vn, and the VL will be 0xffffffff.
    */
-  unsigned char *ReallocateUnsignedCharData(size_t vn);
+  unsigned char *ReallocateUnsignedCharData(unsigned int vn);
 
   //! Append value "i" to the supplied UTF8 string.
   /*
    *  String values will be converted from their native encoding
    *  to UTF-8.
    */
-  void AppendValueToUTF8String(std::string &str, size_t i) const;
+  void AppendValueToUTF8String(std::string &str, unsigned int i) const;
 
   //! Append value "i" to the supplied string.
   /*!
@@ -342,7 +342,7 @@ public:
    *  to ST, LT, or UT, because the resulting string might be very
    *  long, and might contain special (i.e. non-printable) characters.
    */
-  void AppendValueToString(std::string &str, size_t i) const;
+  void AppendValueToString(std::string &str, unsigned int i) const;
 
   //! Override assignment operator for reference counting.
   vtkDICOMValue& operator=(const vtkDICOMValue& o) {
@@ -363,18 +363,18 @@ public:
 private:
   //! Allocate an array of size vn for the specified vr
   template<class T>
-  T *Allocate(vtkDICOMVR vr, size_t vn);
+  T *Allocate(vtkDICOMVR vr, unsigned int vn);
 
   //! Free the internal value.
   static void FreeValue(Value *v);
 
   //! Internal templated GetValues() method.
   template<class OT>
-  void GetValuesT(OT *v, size_t count, size_t s) const;
+  void GetValuesT(OT *v, unsigned int count, unsigned int s) const;
 
   //! Internal templated value creation method.
   template<class T>
-  void CreateValue(vtkDICOMVR vr, const T *data, size_t count);
+  void CreateValue(vtkDICOMVR vr, const T *data, unsigned int count);
 
   //! Internal templated method to initialize for future appends.
   template<class T>
@@ -386,17 +386,17 @@ private:
 
   //! Internal templated method to set a value.
   template<class T>
-  void SetValue(size_t i, const T &item);
+  void SetValue(unsigned int i, const T &item);
 
   //! Method used by vtkDICOMMetaData to change multiplexed value.
   vtkDICOMValue *GetMultiplex();
 
   //! Get the start and end for the "i"th backslash-delimited value.
-  void Substring(size_t i, const char *&start, const char *&end) const;
+  void Substring(unsigned int i, const char *&start, const char *&end) const;
 
   //! Create a value from a string with a specific character set.
   void CreateValueWithSpecificCharacterSet(
-    vtkDICOMVR vr, vtkDICOMCharacterSet cs, const char *data, size_t l);
+    vtkDICOMVR vr, vtkDICOMCharacterSet cs, const char *data, unsigned int l);
 
   //! The only data member: a pointer to the internal value.
   Value *V;
