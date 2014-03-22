@@ -16,6 +16,7 @@
 #include "vtkDICOMMetaData.h"
 #include "vtkDICOMSequence.h"
 #include "vtkDICOMItem.h"
+#include "vtkDICOMUtilities.h"
 
 #include <vtkObjectFactory.h>
 #include <vtkUnsignedShortArray.h>
@@ -26,6 +27,8 @@
 #include <sys/stat.h>
 
 #include <assert.h>
+#include <stdio.h>
+#include <errno.h>
 
 #include <string>
 
@@ -1339,22 +1342,29 @@ bool vtkDICOMParser::ReadFile(vtkDICOMMetaData *data, int idx)
 
   // Make sure that the file exists.
   struct stat fs;
-  if (stat(this->FileName, &fs) != 0)
+  while (stat(this->FileName, &fs) != 0)
     {
-    this->SetErrorCode(vtkErrorCode::CannotOpenFileError);
-    vtkErrorMacro("ReadFile: Can't open file " << this->FileName);
-    return false;
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      this->SetErrorCode(vtkErrorCode::CannotOpenFileError);
+      vtkErrorMacro("ReadFile: Can't open file " << this->FileName);
+      return false;
+      }
+    errno = 0;
     }
 
   this->FileSize = fs.st_size;
 
   // Make sure that the file is readable.
-  this->InputFile = fopen(this->FileName, "rb");
-  if (this->InputFile == 0)
+  while ((this->InputFile = fopen(this->FileName, "rb")) == 0)
     {
-    this->SetErrorCode(vtkErrorCode::CannotOpenFileError);
-    vtkErrorMacro("ReadFile: Can't read the file " << this->FileName);
-    return false;
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      this->SetErrorCode(vtkErrorCode::CannotOpenFileError);
+      vtkErrorMacro("ReadFile: Can't read the file " << this->FileName);
+      return false;
+      }
+    errno = 0;
     }
 
   this->Buffer = new char [this->BufferSize + 8];
@@ -1383,7 +1393,7 @@ bool vtkDICOMParser::ReadFile(vtkDICOMMetaData *data, int idx)
   this->ReadMetaData(cp, ep, data, idx);
 
   delete [] this->Buffer;
-  fclose(this->InputFile);
+  fclose(reinterpret_cast<FILE *>(this->InputFile));
   this->InputFile = NULL;
 
   return true;
@@ -1558,6 +1568,7 @@ bool vtkDICOMParser::FillBuffer(
   char *dp = this->Buffer;
   size_t n = ep - ucp;
   const char *cp = reinterpret_cast<const char *>(ucp);
+  FILE *fp = reinterpret_cast<FILE *>(this->InputFile);
 
   // number of bytes to read
   size_t nbytes = this->ChunkSize;
@@ -1571,20 +1582,28 @@ bool vtkDICOMParser::FillBuffer(
     // recycle unused buffer chars to head of buffer
     do { *dp++ = *cp++; } while (--n);
     }
-  else if (ferror(this->InputFile))
-    {
-    this->SetErrorCode(vtkErrorCode::UnknownError);
-    vtkErrorMacro("FillBuffer: error reading from file " << this->FileName);
-    return false;
-    }
-  else if (feof(this->InputFile))
+  else if (feof(fp))
     {
     // if buffer is drained, and eof, then done
     return false;
     }
 
   // read at most n bytes
-  n = fread(dp, 1, nbytes, this->InputFile);
+  size_t j = 0;
+  while ((n = fread(&dp[j], 1, nbytes, fp)) < nbytes && ferror(fp))
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      this->SetErrorCode(vtkErrorCode::UnknownError);
+      vtkErrorMacro("FillBuffer: error reading from file " << this->FileName);
+      return false;
+      }
+    j += n;
+    nbytes -= n;
+    errno = 0;
+    clearerr(fp);
+    }
+  n += j;
 
   // get number of chars read
   this->BytesRead += n;

@@ -18,6 +18,7 @@
 #include "vtkDICOMSequence.h"
 #include "vtkDICOMItem.h"
 #include "vtkDICOMTagPath.h"
+#include "vtkDICOMUtilities.h"
 
 #include "vtkObjectFactory.h"
 #include "vtkImageData.h"
@@ -62,7 +63,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+#include <errno.h>
 
 vtkStandardNewMacro(vtkDICOMReader);
 
@@ -1632,7 +1633,15 @@ bool vtkDICOMReader::ReadUncompressedFile(
   vtkTypeInt64 offset = offsetAndSize[0];
 
   vtkDebugMacro("Opening DICOM file " << filename);
-  FILE *infile = fopen(filename, "rb");
+  FILE *infile = 0;
+  while ((infile = fopen(filename, "rb")) == 0)
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      break;
+      }
+    errno = 0;
+    }
 
   if (infile == 0)
     {
@@ -1647,12 +1656,16 @@ bool vtkDICOMReader::ReadUncompressedFile(
   while (offset)
     {
     long chunk = static_cast<long>(offset % chunksize);
-    if (fseek(infile, chunk, whence) != 0)
+    while (fseek(infile, chunk, whence) != 0)
       {
-      this->SetErrorCode(vtkErrorCode::PrematureEndOfFileError);
-      vtkErrorMacro("DICOM file is truncated, some data is missing.");
-      fclose(infile);
-      return false;
+      if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+        {
+        this->SetErrorCode(vtkErrorCode::PrematureEndOfFileError);
+        vtkErrorMacro("DICOM file is truncated, some data is missing.");
+        fclose(infile);
+        return false;
+        }
+      errno = 0;
       }
     whence = SEEK_CUR;
     offset -= chunk;
@@ -1662,31 +1675,46 @@ bool vtkDICOMReader::ReadUncompressedFile(
     fileIdx, DC::BitsAllocated).AsInt();
 
   size_t readSize = bufferSize;
-  size_t resultSize = 0;
+  char *filePtr = buffer;
+  if (bitsAllocated == 12)
+    {
+    readSize = bufferSize/2 + (bufferSize+3)/4;
+    filePtr = buffer + (bufferSize - readSize);
+    }
+  else if (bitsAllocated == 1)
+    {
+    readSize = (bufferSize + 7)/8;
+    filePtr = buffer + (bufferSize - readSize);
+    }
+
+  size_t n = readSize;
+  size_t m = 0;
+  size_t j = 0;
+  while ((m = fread(&filePtr[j], 1, n, infile)) < n && ferror(infile))
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      break;
+      }
+    errno = 0;
+    clearerr(infile);
+    j += m;
+    n -= m;
+    }
+  size_t resultSize = j + m;
+
   if (bitsAllocated == 12)
     {
     // unpack 12 bits little endian into 16 bits little endian,
     // the result will have to be swapped if machine is BE (the
     // swapping is done at the end of this function)
-    readSize = bufferSize/2 + (bufferSize+3)/4;
-    char *filePtr = buffer + (bufferSize - readSize);
-    resultSize = fread(filePtr, 1, readSize, infile);
-
     vtkDICOMReader::UnpackBits(filePtr, buffer, bufferSize, bitsAllocated);
     }
   else if (bitsAllocated == 1)
     {
     // unpack 1 bit into 8 bits, source assumed to be either OB
     // or little endian OW, never big endian OW
-    readSize = (bufferSize + 7)/8;
-    char *filePtr = buffer + (bufferSize - readSize);
-    resultSize = fread(filePtr, 1, readSize, infile);
-
     vtkDICOMReader::UnpackBits(filePtr, buffer, bufferSize, bitsAllocated);
-    }
-  else
-    {
-    resultSize = fread(buffer, 1, readSize, infile);
     }
 
   bool success = true;

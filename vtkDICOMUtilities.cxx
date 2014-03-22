@@ -18,6 +18,7 @@
 #include <string>
 
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -203,7 +204,7 @@ void vtkConvertUUIDToUID(const char *uuid, char *uid)
 }
 
 // read from the random number generator
-void vtkGenerateRandomBytes(char *bytes, vtkIdType n)
+void vtkGenerateRandomBytes(char *bytes, vtkIdType count)
 {
   int r = 0;
 #ifdef _WIN32
@@ -218,22 +219,43 @@ void vtkGenerateRandomBytes(char *bytes, vtkIdType n)
     }
   if (r != 0)
     {
-    r = CryptGenRandom(hProv, n, reinterpret_cast<BYTE *>(bytes));
+    r = CryptGenRandom(hProv, count, reinterpret_cast<BYTE *>(bytes));
     CryptReleaseContext(hProv, 0);
     }
 #else
   // use the "random" device on unix-like systems
-  FILE *infile = fopen("/dev/random", "rb");
+  FILE *infile = 0;
+  while ((infile = fopen("/dev/random", "rb")) == 0)
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      break;
+      }
+    errno = 0;
+    }
   if (infile)
     {
-    size_t m = fread(bytes, 1, n, infile);
-    r = (m == static_cast<size_t>(n));
+    size_t n = static_cast<size_t>(count);
+    size_t m = 0;
+    size_t j = 0;
+    while ((m = fread(&bytes[j], 1, n, infile)) < n && ferror(infile))
+      {
+      if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+        {
+        break;
+        }
+      errno = 0;
+      clearerr(infile);
+      j += m;
+      n -= m;
+      }
+    r = (m == n);
     fclose(infile);
     }
 #endif
   if (r == 0)
     {
-    memset(bytes, '\0', n);
+    memset(bytes, '\0', count);
     vtkGenericWarningMacro(
       "vtkDICOMUtilities::GenerateUID() failed to read from "
       "the random number generator");
@@ -599,27 +621,62 @@ bool vtkDICOMUtilities::IsDICOMFile(const char *filename)
   char buffer[256];
 
   struct stat fs;
-  if (filename == 0 || stat(filename, &fs) != 0)
+  if (filename == 0)
     {
     return false;
     }
+  while (stat(filename, &fs) != 0)
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      return false;
+      }
+    errno = 0;
+    }
 
   off_t size = fs.st_size;
-  if (size > static_cast<off_t>(sizeof(buffer)))
+
+  // File must be a reasonable size.
+  if (size < 256)
+    {
+    return false;
+    }
+  else if (size > static_cast<off_t>(sizeof(buffer)))
     {
     size = static_cast<off_t>(sizeof(buffer));
     }
 
-  FILE *infile = fopen(filename, "rb");
+  FILE *infile = 0;
+  while ((infile = fopen(filename, "rb")) == 0)
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      break;
+      }
+    errno = 0;
+    }
 
   if (infile == 0)
     {
     return false;
     }
 
-  size_t rsize = fread(buffer, 1, size, infile);
+  size_t m = static_cast<size_t>(size);
+  size_t n = 0;
+  size_t j = 0;
+  while ((n = fread(&buffer[j], 1, m, infile)) < m && ferror(infile))
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      break;
+      }
+    errno = 0;
+    clearerr(infile);
+    m -= n;
+    j += n;
+    }
   fclose(infile);
-  if (rsize != static_cast<size_t>(size))
+  if (n != m)
     {
     return false;
     }
@@ -641,12 +698,6 @@ bool vtkDICOMUtilities::IsDICOMFile(const char *filename)
       }
     // Some non-standard files have DICM at the beginning.
     skip = 0;
-    }
-
-  // File must be a reasonable size.
-  if (size < 256)
-    {
-    return false;
     }
 
   cp = buffer;
@@ -720,4 +771,18 @@ void vtkDICOMUtilities::SetImplementationVersionName(const char *name)
 {
   strncpy(vtkDICOMUtilities::ImplementationVersionName, name, 16);
   vtkDICOMUtilities::ImplementationVersionName[16] = '\0';
+}
+
+//----------------------------------------------------------------------------
+
+bool vtkDICOMUtilities::RetryOnEINTR = true;
+
+bool vtkDICOMUtilities::GetRetryOnEINTR()
+{
+  return vtkDICOMUtilities::RetryOnEINTR;
+}
+
+void vtkDICOMUtilities::SetRetryOnEINTR(bool v)
+{
+  vtkDICOMUtilities::RetryOnEINTR = v;
 }

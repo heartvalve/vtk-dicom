@@ -18,7 +18,6 @@
 #include "vtkDICOMModule.h"
 
 #include <string>
-#include <stdio.h>
 
 class vtkDICOMMetaData;
 class vtkUnsignedShortArray;
@@ -137,7 +136,7 @@ protected:
   std::string TransferSyntax;
   vtkDICOMMetaData *MetaData;
   vtkUnsignedShortArray *Groups;
-  FILE *InputFile;
+  void *InputFile;
   vtkTypeInt64 BytesRead;
   vtkTypeInt64 FileOffset;
   vtkTypeInt64 FileSize;

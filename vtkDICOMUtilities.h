@@ -92,6 +92,17 @@ public:
    */
   static void SetImplementationVersionName(const char *name);
 
+  //! Set whether to resume IO after a singal occurs.
+  /*!
+   *  This is a global setting for DICOM IO operations, and is only useful
+   *  for programs that have signal handlers installed.  A signal handler
+   *  can clear this flag in order to make pending IO operations fail.  If
+   *  a signal handler does not clear this flag, then pending IO operations
+   *  will resume after the signal.  This has no effect on non-POSIX systems.
+   */
+  static void SetRetryOnEINTR(bool v);
+  static bool GetRetryOnEINTR();
+
 protected:
   vtkDICOMUtilities();
   ~vtkDICOMUtilities();
@@ -99,6 +110,7 @@ protected:
   static char UIDPrefix[64];
   static char ImplementationClassUID[65];
   static char ImplementationVersionName[17];
+  static bool RetryOnEINTR;
 
 private:
   vtkDICOMUtilities(const vtkDICOMUtilities&);  // Not implemented.

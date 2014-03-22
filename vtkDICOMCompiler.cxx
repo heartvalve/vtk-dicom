@@ -35,6 +35,8 @@
 #endif
 
 #include <assert.h>
+#include <stdio.h>
+#include <errno.h>
 
 #include <string>
 
@@ -907,7 +909,19 @@ void vtkDICOMCompiler::Close()
 {
   if (this->OutputFile)
     {
-    fclose(this->OutputFile);
+    FILE *fp = reinterpret_cast<FILE *>(this->OutputFile);
+    if (errno == 0)
+      {
+      while (fflush(fp) != 0)
+        {
+        if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+          {
+          break;
+          }
+        errno = 0;
+        }
+      }
+    fclose(fp);
     this->OutputFile = NULL;
     }
 }
@@ -939,7 +953,14 @@ bool vtkDICOMCompiler::WriteFile(vtkDICOMMetaData *data, int idx)
     unlink(this->FileName);
     }
 
-  this->OutputFile = fopen(this->FileName, "wb");
+  while ((this->OutputFile = fopen(this->FileName, "wb")) == 0)
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      break;
+      }
+    errno = 0;
+    }
 
   if (this->OutputFile == 0)
     {
@@ -1008,14 +1029,24 @@ void vtkDICOMCompiler::WritePixelData(const char *cp, vtkIdType size)
     return;
     }
 
-  size_t n = fwrite(cp, 1, size, this->OutputFile);
-  if (n != static_cast<size_t>(size))
+  FILE *fp = reinterpret_cast<FILE *>(this->OutputFile);
+  size_t m = static_cast<size_t>(size);
+  size_t n = 0;
+  size_t j = 0;
+  while ((n = fwrite(&cp[j], 1, m, fp)) < m)
     {
-    this->Close();
-    unlink(this->FileName);
-    this->SetErrorCode(vtkErrorCode::OutOfDiskSpaceError);
-    vtkErrorMacro("Error while writing file "
-                  << this->FileName << ": Out of disk space.");
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      this->Close();
+      unlink(this->FileName);
+      this->SetErrorCode(vtkErrorCode::OutOfDiskSpaceError);
+      vtkErrorMacro("Error while writing file "
+                    << this->FileName << ": Out of disk space.");
+      break;
+      }
+    j += n;
+    m -= n;
+    errno = 0;
     }
 }
 
@@ -1031,7 +1062,10 @@ void vtkDICOMCompiler::WriteFrame(const char *cp, vtkIdType size)
   // this will set endiancheck.s to 1 on little endian architectures
   endiancheck.c[0] = 1;
   endiancheck.c[1] = 0;
+  size_t j = 0;
   size_t n = 0;
+  size_t m = static_cast<size_t>(size);
+  FILE *fp = reinterpret_cast<FILE *>(this->OutputFile);
 
   if (this->Compressed)
     {
@@ -1073,16 +1107,34 @@ void vtkDICOMCompiler::WriteFrame(const char *cp, vtkIdType size)
       dp += 2;
       cp += 2;
       }
-    n = fwrite(buf, 1, size, this->OutputFile);
+    while ((n = fwrite(&cp[j], 1, m, fp)) < m)
+      {
+      if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+        {
+        break;
+        }
+      errno = 0;
+      j += n;
+      m -= n;
+      }
     delete [] buf;
     }
   else
     {
     // For uncompressed frames, write the data raw
-    n = fwrite(cp, 1, size, this->OutputFile);
+    while ((n = fwrite(&cp[j], 1, m, fp)) < m)
+      {
+      if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+        {
+        break;
+        }
+      errno = 0;
+      j += n;
+      m -= n;
+      }
     }
 
-  if (n != static_cast<size_t>(size))
+  if (n != m)
     {
     this->Close();
     unlink(this->FileName);
@@ -1336,9 +1388,20 @@ bool vtkDICOMCompiler::FlushBuffer(
   const char *cp = reinterpret_cast<const char *>(ucp);
   char *dp = this->Buffer;
   ucp = reinterpret_cast<unsigned char *>(dp);
+  FILE *fp = reinterpret_cast<FILE *>(this->OutputFile);
   size_t n = cp - dp;
-
-  size_t m = fwrite(dp, 1, n, this->OutputFile);
+  size_t m;
+  size_t j = 0;
+  while ((m = fwrite(&dp[j], 1, n, fp)) < n)
+    {
+    if (errno != EINTR || !vtkDICOMUtilities::GetRetryOnEINTR())
+      {
+      break;
+      }
+    errno = 0;
+    j += m;
+    n -= m;
+    }
 
   return (n == m);
 }
